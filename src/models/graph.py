@@ -1,5 +1,5 @@
 import numpy as np
-from marker_filter import RAW_MARKERS
+from src.dataset.marker_filter import RAW_MARKERS
 
 # Anatomical skeleton connectivity for the 39 Plug-in Gait markers.
 EDGES = [
