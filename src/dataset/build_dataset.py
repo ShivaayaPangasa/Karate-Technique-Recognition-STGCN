@@ -1,38 +1,183 @@
 import csv
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+
 from preprocess import preprocess_file
 
-MANIFEST_PATH = Path("data/manifest_split.csv")
-OUT_DIR = Path("data/processed")
-INDEX_PATH = Path("data/processed_index.csv")
+
+MANIFEST_PATH = Path(
+    "data/manifest_split.csv"
+)
+
+OUT_DIR = Path(
+    "data/processed"
+)
+
+INDEX_PATH = Path(
+    "data/processed_index.csv"
+)
+
 
 if __name__ == "__main__":
-    with open(MANIFEST_PATH, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    index_rows, n_failed = [], 0
+    with open(
+        MANIFEST_PATH,
+        newline="",
+        encoding="utf-8"
+    ) as f:
 
-    for i, row in enumerate(rows, start=1):
-        out_path = OUT_DIR / f"{row['participant']}_{row['session']}_{row['exercise']}_{row['trial']}_{i}.npy"
+        rows = list(
+            csv.DictReader(f)
+        )
+
+    OUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    index_rows = []
+
+    failed = 0
+
+    for i, row in enumerate(
+        rows,
+        start=1
+    ):
+
+        technique = int(
+            row["technique"]
+        )
+
+        condition = int(
+            row["condition"]
+        )
+
+        trial = int(
+            row["trial"]
+        )
+
+        output_path = (
+            OUT_DIR
+            / f"{row['participant']}_"
+              f"S{technique:02d}_"
+              f"E{condition:02d}_"
+              f"T{trial:02d}_"
+              f"{i}.npy"
+        )
+
         try:
-            tensor = preprocess_file(Path(row["filepath"]))
-            if not np.isfinite(tensor).all():
-                raise ValueError("Non-finite values (NaN/Inf) in preprocessed tensor")
-            np.save(out_path, tensor)
-            index_rows.append({"npy_path": str(out_path), "participant": row["participant"],
-                                "label": row["exercise"], "split": row["split"]})
-        except Exception as e:
-            n_failed += 1
-            print(f"  failed on {row['filename']}: {e}")
+
+            tensor = preprocess_file(
+                Path(
+                    row["filepath"]
+                )
+            )
+
+            if tensor.shape != (
+                100,
+                39,
+                3
+            ):
+
+                raise ValueError(
+                    f"Unexpected tensor shape: "
+                    f"{tensor.shape}"
+                )
+
+            if not np.isfinite(
+                tensor
+            ).all():
+
+                raise ValueError(
+                    "Tensor contains NaN/Inf"
+                )
+
+            np.save(
+                output_path,
+                tensor
+            )
+
+            index_rows.append(
+                {
+                    "npy_path":
+                        output_path.as_posix(),
+
+                    "participant":
+                        row["participant"],
+
+                    "technique":
+                        row["technique"],
+
+                    "condition":
+                        row["condition"],
+
+                    "trial":
+                        row["trial"],
+
+                    # IMPORTANT:
+                    # technique is the prediction target.
+                    "label":
+                        row["technique"],
+
+                    "split":
+                        row["split"],
+                }
+            )
+
+        except Exception as exc:
+
+            failed += 1
+
+            print(
+                f"FAILED "
+                f"{row['filename']}: "
+                f"{exc}"
+            )
+
         if i % 100 == 0:
-            print(f"  processed {i}/{len(rows)}")
 
-    with open(INDEX_PATH, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["npy_path", "participant", "label", "split"])
+            print(
+                f"Processed "
+                f"{i}/{len(rows)}"
+            )
+
+    with open(
+        INDEX_PATH,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as f:
+
+        fields = [
+            "npy_path",
+            "participant",
+            "technique",
+            "condition",
+            "trial",
+            "label",
+            "split",
+        ]
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=fields
+        )
+
         writer.writeheader()
-        writer.writerows(index_rows)
+        writer.writerows(
+            index_rows
+        )
 
-    print(f"\nDone. {len(index_rows)} succeeded, {n_failed} failed.")
-    print(f"Index saved to {INDEX_PATH}")
+    print(
+        f"\nSucceeded: "
+        f"{len(index_rows)}"
+    )
+
+    print(
+        f"Failed: {failed}"
+    )
+
+    print(
+        f"Saved: {INDEX_PATH}"
+    )

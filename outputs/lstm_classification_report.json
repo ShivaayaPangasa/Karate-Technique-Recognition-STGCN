@@ -1,0 +1,38 @@
+{
+  "accuracy": 0.875,
+  "macro_precision": 0.8807331098132526,
+  "macro_recall": 0.8744530452077622,
+  "macro_f1": 0.874346813593502,
+  "per_class": {
+    "Gyaku-Zuki": {
+      "precision": 0.7910447761194029,
+      "recall": 0.9814814814814815,
+      "f1": 0.8760330578512396,
+      "support": 54
+    },
+    "Mae-Geri": {
+      "precision": 0.8888888888888888,
+      "recall": 0.9056603773584906,
+      "f1": 0.897196261682243,
+      "support": 53
+    },
+    "Mawashi-Geri gedan": {
+      "precision": 0.8695652173913043,
+      "recall": 0.7692307692307693,
+      "f1": 0.8163265306122449,
+      "support": 52
+    },
+    "Mawashi-Geri jodan": {
+      "precision": 0.8541666666666666,
+      "recall": 0.7735849056603774,
+      "f1": 0.811881188118812,
+      "support": 53
+    },
+    "Ushiro-Mawashi-Geri": {
+      "precision": 1.0,
+      "recall": 0.9423076923076923,
+      "f1": 0.9702970297029703,
+      "support": 52
+    }
+  }
+}

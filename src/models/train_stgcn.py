@@ -1,41 +1,94 @@
 """
 Train and evaluate the ST-GCN karate technique classifier.
 
-Primary experiment:
-- Input: 100 x 39 x 3 XYZ marker coordinates
-- 39 anatomical markers
-- 3 spatial channels: X, Y, Z
-- Subject-independent train/validation/test split
-- Seed: 42
-- No velocity channels in the primary experiment
-- Metrics are calculated without scikit-learn
+Primary research model:
+
+    Spatio-Temporal Graph Convolutional Network
+
+Research comparison:
+
+    LSTM  = sequence-only baseline
+    ST-GCN = explicit human-body topology + temporal modelling
+
+Experimental protocol:
+
+    Input:
+        100 × 39 × 3 XYZ marker coordinates
+
+    Classes:
+        S01-S05 karate techniques
+
+    Split:
+        Subject-independent
+
+    Seed:
+        42
+
+    Primary metric:
+        Macro-F1
+
+    Model selection:
+        Best validation Macro-F1
+
+    Test:
+        Evaluated only after selecting best checkpoint
 """
 
+# ============================================================
+# IMPORTS
+# ============================================================
+
 import csv
+import json
 import random
 from pathlib import Path
 
 import numpy as np
+
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 
-from src.models.graph import build_adjacency
-from src.models.stgcn_model import STGCN
+from torch.utils.data import (
+    Dataset,
+    DataLoader,
+)
+
+from src.models.graph import (
+    build_adjacency
+)
+
+from src.models.stgcn_model import (
+    STGCN
+)
+
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
-INDEX_PATH = "data/processed_index.csv"
-OUTPUT_DIR = Path("outputs")
+INDEX_PATH = (
+    "data/processed_index.csv"
+)
+
+OUTPUT_DIR = Path(
+    "outputs"
+)
 
 SEED = 42
+
 BATCH_SIZE = 16
+
 EPOCHS = 100
+
 LEARNING_RATE = 1e-3
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NUM_CLASSES = 5
+
+DEVICE = torch.device(
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
+)
 
 
 # ============================================================
@@ -43,94 +96,180 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ============================================================
 
 random.seed(SEED)
+
 np.random.seed(SEED)
+
 torch.manual_seed(SEED)
 
 if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(SEED)
+
+    torch.cuda.manual_seed_all(
+        SEED
+    )
 
 torch.backends.cudnn.deterministic = True
+
 torch.backends.cudnn.benchmark = False
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+OUTPUT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 
 # ============================================================
 # METRICS
 # ============================================================
 
-def calculate_metrics(y_true, y_pred, num_classes):
-    """
-    Calculate:
-    - Accuracy
-    - Macro-F1
-    - Macro-precision
-    - Macro-recall
+def calculate_metrics(
+    y_true,
+    y_pred,
+    num_classes,
+):
 
-    This avoids the scikit-learn dependency, which is useful on
-    Windows systems where sklearn's compiled extensions may be blocked.
-    """
+    y_true = np.asarray(
+        y_true
+    )
 
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    y_pred = np.asarray(
+        y_pred
+    )
 
-    # Accuracy
-    accuracy = float(np.mean(y_true == y_pred))
+
+    accuracy = float(
+        np.mean(
+            y_true == y_pred
+        )
+    )
+
 
     precisions = []
+
     recalls = []
+
     f1_scores = []
 
-    for cls in range(num_classes):
+
+    for cls in range(
+        num_classes
+    ):
 
         true_positive = np.sum(
-            (y_true == cls) & (y_pred == cls)
+            (y_true == cls)
+            &
+            (y_pred == cls)
         )
 
         false_positive = np.sum(
-            (y_true != cls) & (y_pred == cls)
+            (y_true != cls)
+            &
+            (y_pred == cls)
         )
 
         false_negative = np.sum(
-            (y_true == cls) & (y_pred != cls)
+            (y_true == cls)
+            &
+            (y_pred != cls)
         )
 
-        # Precision
-        if (true_positive + false_positive) > 0:
+
+        if (
+            true_positive
+            + false_positive
+        ) > 0:
+
             precision = (
                 true_positive
-                / (true_positive + false_positive)
+                /
+                (
+                    true_positive
+                    + false_positive
+                )
             )
+
         else:
+
             precision = 0.0
 
-        # Recall
-        if (true_positive + false_negative) > 0:
+
+        if (
+            true_positive
+            + false_negative
+        ) > 0:
+
             recall = (
                 true_positive
-                / (true_positive + false_negative)
+                /
+                (
+                    true_positive
+                    + false_negative
+                )
             )
+
         else:
+
             recall = 0.0
 
-        # F1
-        if (precision + recall) > 0:
+
+        if (
+            precision + recall
+        ) > 0:
+
             f1 = (
-                2 * precision * recall
-                / (precision + recall)
+                2.0
+                * precision
+                * recall
+                /
+                (
+                    precision
+                    + recall
+                )
             )
+
         else:
+
             f1 = 0.0
 
-        precisions.append(precision)
-        recalls.append(recall)
-        f1_scores.append(f1)
+
+        precisions.append(
+            precision
+        )
+
+        recalls.append(
+            recall
+        )
+
+        f1_scores.append(
+            f1
+        )
+
 
     return {
-        "accuracy": accuracy,
-        "macro_f1": float(np.mean(f1_scores)),
-        "precision": float(np.mean(precisions)),
-        "recall": float(np.mean(recalls)),
+
+        "accuracy":
+            accuracy,
+
+        "macro_f1":
+            float(
+                np.mean(
+                    f1_scores
+                )
+            ),
+
+        "precision":
+            float(
+                np.mean(
+                    precisions
+                )
+            ),
+
+        "recall":
+            float(
+                np.mean(
+                    recalls
+                )
+            ),
     }
 
 
@@ -139,18 +278,6 @@ def calculate_metrics(y_true, y_pred, num_classes):
 # ============================================================
 
 class GraphKarateDataset(Dataset):
-    """
-    Dataset used for ST-GCN training.
-
-    Each sample is expected to have shape:
-
-        (100, 39, 3)
-
-    where:
-        100 = temporal frames
-        39  = anatomical markers
-        3   = XYZ coordinates
-    """
 
     def __init__(
         self,
@@ -162,90 +289,167 @@ class GraphKarateDataset(Dataset):
         with open(
             index_path,
             newline="",
-            encoding="utf-8"
+            encoding="utf-8",
         ) as f:
 
-            rows = list(csv.DictReader(f))
+            rows = list(
+                csv.DictReader(f)
+            )
+
 
         self.rows = [
-            row for row in rows
+            row
+            for row in rows
             if row["split"] == split
         ]
 
-        # Use the complete dataset to establish the same
-        # label-to-index mapping for every split.
+
         self.labels = sorted(
-            set(row["label"] for row in rows)
+            set(
+                row["label"]
+                for row in rows
+            )
         )
 
+
         self.label_to_idx = {
+
             label: index
-            for index, label in enumerate(self.labels)
+
+            for index, label
+            in enumerate(
+                self.labels
+            )
         }
 
-        self.augment_data = augment_data
+
+        self.augment_data = (
+            augment_data
+        )
+
 
     def __len__(self):
-        return len(self.rows)
 
-    def __getitem__(self, index):
+        return len(
+            self.rows
+        )
 
-        row = self.rows[index]
 
-        xyz = np.load(row["npy_path"]).astype(
+    def __getitem__(
+        self,
+        index,
+    ):
+
+        row = self.rows[
+            index
+        ]
+
+
+        xyz = np.load(
+            row["npy_path"]
+        ).astype(
             np.float32
         )
 
-        # Expected:
-        # (100, 39, 3)
-        if xyz.shape != (100, 39, 3):
+
+        expected_shape = (
+            100,
+            39,
+            3,
+        )
+
+
+        if xyz.shape != expected_shape:
+
             raise ValueError(
-                f"Unexpected input shape {xyz.shape} "
-                f"for {row['npy_path']}. "
-                f"Expected (100, 39, 3)."
+                f"Unexpected input shape "
+                f"{xyz.shape} for "
+                f"{row['npy_path']}. "
+                f"Expected "
+                f"{expected_shape}."
             )
 
-        # Training augmentation:
-        # small rotation around vertical axis + Gaussian noise.
+
+        if not np.isfinite(
+            xyz
+        ).all():
+
+            raise ValueError(
+                f"Non-finite values found "
+                f"in {row['npy_path']}"
+            )
+
+
+        # ----------------------------------------------------
+        # TRAINING AUGMENTATION
+        # ----------------------------------------------------
+
         if self.augment_data:
 
             angle = np.random.uniform(
-                -15,
-                15
+                -15.0,
+                15.0,
             ) * np.pi / 180.0
 
-            c = np.cos(angle)
-            s = np.sin(angle)
+
+            c = np.cos(
+                angle
+            )
+
+            s = np.sin(
+                angle
+            )
+
 
             rotation = np.array(
                 [
                     [c, -s, 0],
-                    [s, c, 0],
-                    [0, 0, 1],
+                    [s,  c, 0],
+                    [0,  0, 1],
                 ],
                 dtype=np.float32,
             )
 
-            xyz = xyz @ rotation.T
+
+            xyz = (
+                xyz
+                @ rotation.T
+            )
+
 
             noise = np.random.normal(
-                0,
+                0.0,
                 0.01,
-                xyz.shape
-            ).astype(np.float32)
+                xyz.shape,
+            ).astype(
+                np.float32
+            )
 
-            xyz = xyz + noise
 
-        label = self.label_to_idx[row["label"]]
+            xyz = (
+                xyz
+                + noise
+            )
+
+
+        label = (
+            self.label_to_idx[
+                row["label"]
+            ]
+        )
+
 
         return (
-            torch.from_numpy(xyz).float(),
+            torch.from_numpy(
+                xyz
+            ).float(),
+
             label,
         )
 
 
 # ============================================================
-# TRAINING
+# TRAIN ONE EPOCH
 # ============================================================
 
 def train_one_epoch(
@@ -258,63 +462,118 @@ def train_one_epoch(
     model.train()
 
     running_loss = 0.0
+
     total = 0
+
     correct = 0
+
+    skipped_batches = 0
+
 
     for x, y in loader:
 
-        x = x.to(DEVICE)
-        y = y.to(DEVICE)
+        x = x.to(
+            DEVICE
+        )
+
+        y = y.to(
+            DEVICE
+        )
+
 
         optimizer.zero_grad()
 
-        logits = model(x)
+
+        logits = model(
+            x
+        )
+
 
         loss = criterion(
             logits,
             y
         )
 
-        # Guard against numerical instability.
-        if not torch.isfinite(loss):
+
+        # Numerical stability guard
+
+        if not torch.isfinite(
+            loss
+        ):
+
             print(
-                "Warning: non-finite loss encountered. "
+                "Warning: non-finite "
+                "loss encountered. "
                 "Skipping batch."
             )
+
+            skipped_batches += 1
+
             continue
+
 
         loss.backward()
 
-        # Gradient clipping for stability.
+
         torch.nn.utils.clip_grad_norm_(
             model.parameters(),
             max_norm=1.0,
         )
 
+
         optimizer.step()
 
+
         running_loss += (
-            loss.item() * x.size(0)
+            loss.item()
+            * x.size(0)
         )
+
 
         predictions = torch.argmax(
             logits,
-            dim=1
+            dim=1,
         )
+
 
         correct += (
             predictions == y
         ).sum().item()
 
-        total += y.size(0)
+
+        total += (
+            y.size(0)
+        )
+
 
     if total == 0:
-        return float("nan"), 0.0
 
-    epoch_loss = running_loss / total
-    epoch_accuracy = correct / total
+        return (
+            float("nan"),
+            0.0,
+            skipped_batches,
+        )
 
-    return epoch_loss, epoch_accuracy
+
+    epoch_loss = (
+        running_loss
+        /
+        total
+    )
+
+
+    epoch_accuracy = (
+        correct
+        /
+        total
+    )
+
+
+    return (
+        epoch_loss,
+        epoch_accuracy,
+        skipped_batches,
+    )
 
 
 # ============================================================
@@ -331,43 +590,69 @@ def evaluate(
     model.eval()
 
     all_labels = []
+
     all_predictions = []
 
     total_loss = 0.0
+
     total_samples = 0
+
 
     criterion = nn.CrossEntropyLoss()
 
+
     for x, y in loader:
 
-        x = x.to(DEVICE)
-        y = y.to(DEVICE)
+        x = x.to(
+            DEVICE
+        )
 
-        logits = model(x)
+        y = y.to(
+            DEVICE
+        )
+
+
+        logits = model(
+            x
+        )
+
 
         loss = criterion(
             logits,
             y
         )
 
+
         predictions = torch.argmax(
             logits,
-            dim=1
+            dim=1,
         )
+
 
         total_loss += (
-            loss.item() * x.size(0)
+            loss.item()
+            * x.size(0)
         )
 
-        total_samples += x.size(0)
+
+        total_samples += (
+            x.size(0)
+        )
+
 
         all_labels.extend(
-            y.cpu().numpy().tolist()
+            y.cpu()
+            .numpy()
+            .tolist()
         )
 
+
         all_predictions.extend(
-            predictions.cpu().numpy().tolist()
+            predictions.cpu()
+            .numpy()
+            .tolist()
         )
+
 
     metrics = calculate_metrics(
         all_labels,
@@ -375,12 +660,21 @@ def evaluate(
         num_classes,
     )
 
+
     if total_samples > 0:
+
         metrics["loss"] = (
-            total_loss / total_samples
+            total_loss
+            /
+            total_samples
         )
+
     else:
-        metrics["loss"] = float("nan")
+
+        metrics["loss"] = float(
+            "nan"
+        )
+
 
     return metrics
 
@@ -391,20 +685,52 @@ def evaluate(
 
 def main():
 
-    print("=" * 60)
-    print("ST-GCN Karate Technique Recognition")
-    print("=" * 60)
+    print("=" * 70)
 
-    print(f"Device: {DEVICE}")
-    print(f"Seed: {SEED}")
-    print("Input shape: 100 x 39 x 3")
-    print("Channels: 3 (X, Y, Z)")
-    print("Velocity channels: disabled")
+    print(
+        "ST-GCN Karate Technique Recognition"
+    )
+
+    print("=" * 70)
+
+    print(
+        f"Device: {DEVICE}"
+    )
+
+    print(
+        f"Seed: {SEED}"
+    )
+
+    print(
+        "Input shape: 100 × 39 × 3"
+    )
+
+    print(
+        "Channels: X, Y, Z"
+    )
+
+    print(
+        "Velocity channels: disabled"
+    )
+
+    print(
+        "Training augmentation: enabled"
+    )
+
+    print(
+        "Validation augmentation: disabled"
+    )
+
+    print(
+        "Test augmentation: disabled"
+    )
+
     print()
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # DATASETS
-    # --------------------------------------------------------
+    # ========================================================
 
     train_dataset = GraphKarateDataset(
         split="train",
@@ -421,30 +747,64 @@ def main():
         augment_data=False,
     )
 
+
     print(
-        f"Train samples: {len(train_dataset)}"
+        f"Train samples: "
+        f"{len(train_dataset)}"
     )
 
     print(
-        f"Validation samples: {len(val_dataset)}"
+        f"Validation samples: "
+        f"{len(val_dataset)}"
     )
 
     print(
-        f"Test samples: {len(test_dataset)}"
+        f"Test samples: "
+        f"{len(test_dataset)}"
     )
 
     print(
-        f"Classes: {train_dataset.labels}"
+        f"Classes: "
+        f"{train_dataset.labels}"
     )
 
-    print(
-        f"Number of classes: "
-        f"{len(train_dataset.labels)}"
-    )
 
-    # --------------------------------------------------------
+    if len(
+        train_dataset.labels
+    ) != NUM_CLASSES:
+
+        raise ValueError(
+            "Expected 5 technique "
+            "classes, but found "
+            f"{train_dataset.labels}"
+        )
+
+
+    if (
+        train_dataset.labels
+        != val_dataset.labels
+    ):
+
+        raise ValueError(
+            "Train and validation "
+            "label mappings differ."
+        )
+
+
+    if (
+        train_dataset.labels
+        != test_dataset.labels
+    ):
+
+        raise ValueError(
+            "Train and test "
+            "label mappings differ."
+        )
+
+
+    # ========================================================
     # DATALOADERS
-    # --------------------------------------------------------
+    # ========================================================
 
     train_loader = DataLoader(
         train_dataset,
@@ -466,127 +826,198 @@ def main():
         shuffle=False,
         num_workers=0,
     )
-    
-    # --------------------------------------------------------
+
+
+    # ========================================================
     # GRAPH
-    # --------------------------------------------------------
+    # ========================================================
 
-    # build_adjacency() returns a NumPy array.
-    # STGCN converts it to a PyTorch tensor internally.
-    A = build_adjacency()
-
-    print()
-    print(
-        f"Graph shape: {A.shape}"
+    adjacency = (
+        build_adjacency()
     )
 
-    # --------------------------------------------------------
-    # MODEL
-    # --------------------------------------------------------
-
-    model = STGCN(
-        A,
-        in_channels=3,
-        num_classes=len(train_dataset.labels),
-    ).to(DEVICE)
 
     print()
+
+    print(
+        f"Graph shape: "
+        f"{adjacency.shape}"
+    )
+
+
+    # ========================================================
+    # MODEL
+    # ========================================================
+
+    model = STGCN(
+        adjacency,
+        in_channels=3,
+        num_classes=len(
+            train_dataset.labels
+        ),
+    ).to(
+        DEVICE
+    )
+
+
+    print()
+
     print("Model:")
+
     print(model)
 
-    # --------------------------------------------------------
-    # LOSS + OPTIMIZER
-    # --------------------------------------------------------
+
+    # ========================================================
+    # LOSS
+    # ========================================================
 
     criterion = nn.CrossEntropyLoss()
+
+
+    # ========================================================
+    # OPTIMIZER
+    # ========================================================
 
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=LEARNING_RATE,
     )
 
-    # --------------------------------------------------------
-    # TRAINING LOOP
-    # --------------------------------------------------------
+
+    # ========================================================
+    # TRAINING
+    # ========================================================
 
     best_val_f1 = -1.0
+
     best_epoch = 0
 
     best_checkpoint = (
-        OUTPUT_DIR / "stgcn_best.pt"
+        OUTPUT_DIR
+        /
+        "stgcn_best.pt"
     )
 
-    for epoch in range(1, EPOCHS + 1):
 
-        train_loss, train_accuracy = (
-            train_one_epoch(
-                model,
-                train_loader,
-                criterion,
-                optimizer,
-            )
+    for epoch in range(
+        1,
+        EPOCHS + 1,
+    ):
+
+        (
+            train_loss,
+            train_accuracy,
+            skipped_batches,
+        ) = train_one_epoch(
+            model,
+            train_loader,
+            criterion,
+            optimizer,
         )
+
 
         val_metrics = evaluate(
             model,
             val_loader,
-            len(train_dataset.labels),
+            len(
+                train_dataset.labels
+            ),
         )
+
 
         print(
-            f"Epoch {epoch:03d}/{EPOCHS} | "
-            f"Train Loss: {train_loss:.4f} | "
-            f"Train Acc: {train_accuracy:.4f} | "
-            f"Val Loss: {val_metrics['loss']:.4f} | "
-            f"Val Acc: {val_metrics['accuracy']:.4f} | "
-            f"Val Macro-F1: {val_metrics['macro_f1']:.4f}"
+            f"Epoch "
+            f"{epoch:03d}/{EPOCHS} | "
+            f"Train Loss: "
+            f"{train_loss:.4f} | "
+            f"Train Acc: "
+            f"{train_accuracy:.4f} | "
+            f"Val Loss: "
+            f"{val_metrics['loss']:.4f} | "
+            f"Val Acc: "
+            f"{val_metrics['accuracy']:.4f} | "
+            f"Val Macro-F1: "
+            f"{val_metrics['macro_f1']:.4f}"
         )
 
-        # Save the model with the best validation Macro-F1.
+
         if (
-            np.isfinite(val_metrics["macro_f1"])
-            and val_metrics["macro_f1"] > best_val_f1
+            np.isfinite(
+                val_metrics[
+                    "macro_f1"
+                ]
+            )
+            and
+            val_metrics[
+                "macro_f1"
+            ]
+            > best_val_f1
         ):
 
             best_val_f1 = (
-                val_metrics["macro_f1"]
+                val_metrics[
+                    "macro_f1"
+                ]
             )
 
-            best_epoch = epoch
+            best_epoch = (
+                epoch
+            )
+
 
             torch.save(
                 {
-                    "epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "val_metrics": val_metrics,
-                    "labels": train_dataset.labels,
-                    "input_shape": (
-                        100,
-                        39,
+                    "epoch":
+                        epoch,
+
+                    "model_state_dict":
+                        model.state_dict(),
+
+                    "optimizer_state_dict":
+                        optimizer.state_dict(),
+
+                    "val_metrics":
+                        val_metrics,
+
+                    "labels":
+                        train_dataset.labels,
+
+                    "input_shape":
+                        [
+                            100,
+                            39,
+                            3,
+                        ],
+
+                    "in_channels":
                         3,
-                    ),
-                    "in_channels": 3,
-                    "seed": SEED,
+
+                    "seed":
+                        SEED,
                 },
                 best_checkpoint,
             )
 
+
             print(
-                f"  -> Saved best model "
+                "  -> Saved best model "
                 f"(Val Macro-F1: "
                 f"{best_val_f1:.4f})"
             )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # LOAD BEST MODEL
-    # --------------------------------------------------------
+    # ========================================================
 
     print()
+
     print(
-        f"Loading best checkpoint from epoch "
+        f"Loading best checkpoint "
+        f"from epoch "
         f"{best_epoch}..."
     )
+
 
     checkpoint = torch.load(
         best_checkpoint,
@@ -594,24 +1025,36 @@ def main():
         weights_only=False,
     )
 
+
     model.load_state_dict(
-        checkpoint["model_state_dict"]
+        checkpoint[
+            "model_state_dict"
+        ]
     )
 
-    # --------------------------------------------------------
-    # FINAL TEST EVALUATION
-    # --------------------------------------------------------
+
+    # ========================================================
+    # FINAL TEST
+    # ========================================================
 
     test_metrics = evaluate(
         model,
         test_loader,
-        len(train_dataset.labels),
+        len(
+            train_dataset.labels
+        ),
     )
 
+
     print()
-    print("=" * 60)
-    print("FINAL TEST RESULTS")
-    print("=" * 60)
+
+    print("=" * 70)
+
+    print(
+        "FINAL TEST RESULTS"
+    )
+
+    print("=" * 70)
 
     print(
         f"Accuracy : "
@@ -638,33 +1081,87 @@ def main():
         f"{test_metrics['loss']:.4f}"
     )
 
-    print("=" * 60)
+    print("=" * 70)
 
-    # --------------------------------------------------------
-    # SAVE FINAL METRICS
-    # --------------------------------------------------------
 
-    import json
+    # ========================================================
+    # SAVE METRICS
+    # ========================================================
 
     metrics_path = (
-        OUTPUT_DIR / "stgcn_metrics.json"
+        OUTPUT_DIR
+        /
+        "stgcn_metrics.json"
     )
 
+
     results = {
-        "model": "ST-GCN",
-        "input_shape": [
-            100,
-            39,
+
+        "model":
+            "ST-GCN",
+
+        "research_role":
+            "topology_aware_primary_model",
+
+        "dataset":
+            "Kyokushin karate optical motion capture",
+
+        "input_shape":
+            [
+                100,
+                39,
+                3,
+            ],
+
+        "in_channels":
             3,
-        ],
-        "in_channels": 3,
-        "velocity_channels": False,
-        "seed": SEED,
-        "best_epoch": best_epoch,
-        "best_validation_macro_f1": best_val_f1,
-        "test_metrics": test_metrics,
-        "labels": train_dataset.labels,
+
+        "velocity_channels":
+            False,
+
+        "training_augmentation":
+            True,
+
+        "validation_augmentation":
+            False,
+
+        "test_augmentation":
+            False,
+
+        "seed":
+            SEED,
+
+        "batch_size":
+            BATCH_SIZE,
+
+        "epochs":
+            EPOCHS,
+
+        "learning_rate":
+            LEARNING_RATE,
+
+        "best_epoch":
+            best_epoch,
+
+        "best_validation_macro_f1":
+            best_val_f1,
+
+        "train_samples":
+            len(train_dataset),
+
+        "validation_samples":
+            len(val_dataset),
+
+        "test_samples":
+            len(test_dataset),
+
+        "labels":
+            train_dataset.labels,
+
+        "test_metrics":
+            test_metrics,
     }
+
 
     with open(
         metrics_path,
@@ -678,7 +1175,9 @@ def main():
             indent=2,
         )
 
+
     print()
+
     print(
         f"Saved checkpoint: "
         f"{best_checkpoint}"
@@ -689,6 +1188,21 @@ def main():
         f"{metrics_path}"
     )
 
+    print()
+
+    print("=" * 70)
+
+    print(
+        "ST-GCN EXPERIMENT COMPLETE"
+    )
+
+    print("=" * 70)
+
+
+# ============================================================
+# ENTRY POINT
+# ============================================================
 
 if __name__ == "__main__":
+
     main()

@@ -1,0 +1,38 @@
+{
+  "model": "ST-GCN",
+  "research_role": "topology_aware_primary_model",
+  "dataset": "Kyokushin karate optical motion capture",
+  "input_shape": [
+    100,
+    39,
+    3
+  ],
+  "in_channels": 3,
+  "velocity_channels": false,
+  "training_augmentation": true,
+  "validation_augmentation": false,
+  "test_augmentation": false,
+  "seed": 42,
+  "batch_size": 16,
+  "epochs": 100,
+  "learning_rate": 0.001,
+  "best_epoch": 94,
+  "best_validation_macro_f1": 0.9520160815453117,
+  "train_samples": 968,
+  "validation_samples": 174,
+  "test_samples": 264,
+  "labels": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5"
+  ],
+  "test_metrics": {
+    "accuracy": 0.9507575757575758,
+    "macro_f1": 0.9507532160453176,
+    "precision": 0.953603219872341,
+    "recall": 0.9507928828683546,
+    "loss": 0.33811999096447337
+  }
+}

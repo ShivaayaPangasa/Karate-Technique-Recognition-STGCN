@@ -28,7 +28,7 @@ class STGCNBlock(nn.Module):
 
 
 class STGCN(nn.Module):
-    def __init__(self, A, in_channels=3, num_classes=4):
+    def __init__(self, A, in_channels=3, num_classes=5):
         super().__init__()
         A = torch.from_numpy(A).float()
         self.block1 = STGCNBlock(in_channels, 32, A)

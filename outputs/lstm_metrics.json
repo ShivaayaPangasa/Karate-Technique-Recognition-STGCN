@@ -1,0 +1,41 @@
+{
+  "model": "LSTM",
+  "research_role": "sequence_only_baseline",
+  "dataset": "Kyokushin karate optical motion capture",
+  "input_shape": [
+    100,
+    39,
+    3
+  ],
+  "lstm_input_shape": [
+    100,
+    117
+  ],
+  "velocity_channels": false,
+  "training_augmentation": true,
+  "validation_augmentation": false,
+  "test_augmentation": false,
+  "seed": 42,
+  "batch_size": 16,
+  "epochs": 100,
+  "learning_rate": 0.0005,
+  "weight_decay": 0.0001,
+  "best_epoch": 59,
+  "best_validation_macro_f1": 0.9310026389272453,
+  "train_samples": 968,
+  "validation_samples": 174,
+  "test_samples": 264,
+  "labels": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5"
+  ],
+  "test_metrics": {
+    "accuracy": 0.875,
+    "macro_f1": 0.874346813593502,
+    "precision": 0.8807331098132526,
+    "recall": 0.8744530452077622
+  }
+}
