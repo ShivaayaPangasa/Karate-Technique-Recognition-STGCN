@@ -2,8 +2,6 @@
 
 ## Spatio-Temporal Graph Convolutional Network for Karate Technique Recognition: A Comparison with LSTM
 
-This repository contains the implementation for an AIML305 (Advanced Deep Neural Networks) academic project on human movement classification using optical motion-capture data.
-
 The project investigates whether explicitly modelling human-body topology with a Spatio-Temporal Graph Convolutional Network (ST-GCN) improves karate technique recognition compared with a sequence-only Long Short-Term Memory (LSTM) baseline under a subject-independent evaluation protocol.
 
 ---
